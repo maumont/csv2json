@@ -23,30 +23,17 @@ vector<string> formatKeys(vector<string> keys) {
   return keys;
 }
 
-string formatJsonObject(vector<string> keys, vector<string> values) {
+string formatJsonObject(vector<int> indexes, vector<string> values) {
 
-  string object = "\t{\n";
-
-  for(int i = 0; i < keys.size(); ++i) {
-
-    string value = "\"";
-    if(values.size() > i) {
-      value += values[i];
-    }
-    value += "\"";
-
-    object += "\t\t";
-    object += (keys[i] + ": ");
-    object += value;
-
-    if(i == keys.size()-1) {
-      object += "\n";
-    } else {
-      object += ",\n";
-    }
+  if(values.size() <= indexes[0] || values.size() <= indexes[1]) {
+    return "";
   }
 
-  object += "\t},\n";
+  string object = "\t\"";
+  object += values[indexes[0]];
+  object += "\": \"";
+  object += values[indexes[1]];
+  object += "\",\n";
 
   return object;
 }
@@ -55,7 +42,7 @@ vector<string> splitLine(string line) {
   int i = 0;
   string element = "";
   vector<string> splited;
-  
+
   while(i < line.length()) {
     if(line[i] == ',') {
       splited.push_back(element);
@@ -71,79 +58,111 @@ vector<string> splitLine(string line) {
 }
 
 static void show_usage(char* name){
-  cerr << "Usage: " << name << " -s SOURCE_PATH -d DESTINATION_PATH"<<endl;
+  cerr << "Usage: " << name << " -s SOURCE_PATH -d DESTINATION_PATH --keyName 'COLUMN NAME' --valueName 'COLUMN NAME'"<<endl;
 }
 
-bool initFiles(int argc, char* argv[]) {
+bool validateParameters(int argc, char* argv[], vector<string>& names) {
   string sourcePath = "";
   string destinationPath = "";
+  string keyName = "";
+  string valueName = "";
 
-  if(argc < 3) {
+  if(argc < 9) {
     return false;
   }
 
-  for(int i = 0; i < argc; ++i) {
+  for(int i = 1; i < argc - 1; ++i) {
     string arg = argv[i];
 
     if(arg == "-s") {
-      if(i + 1 >= argc) {
-        return false;
-      }
       sourcePath = argv[++i];
     }
-    else if(arg == "-d") {
-      if(i + 1 >= argc) {
-        return false;
-      }
+    if(arg == "-d") {
       destinationPath = argv[++i];
+    }
+    if(arg == "--keyName") {
+      keyName = argv[++i];
+    }
+    if(arg == "--valueName") {
+      valueName = argv[++i];
     }
   }
 
-  if(sourcePath == "" || destinationPath == "") {
+  if(sourcePath == "" || destinationPath == "" || keyName == "" || valueName == "") {
     return false;
   }
 
   freopen(sourcePath.c_str(), "r+", stdin);
   freopen(destinationPath.c_str(), "w+", stdout);
+  names.push_back(keyName);
+  names.push_back(valueName);
 
   return true;
 }
 
+vector<int> findIndexes(vector<string> values, vector<string> names) {
+  vector<int> result (2, -1);
+
+  for(int i = 0; i < values.size(); ++i) {
+    if(values[i] == names[0]) {
+      result[0] = i;
+    }
+    else if(values[i] == names[1]) {
+      result[1] = i;
+    }
+  }
+
+  if(result[0] == -1 || result[1] == -1) {
+    vector<int> error (0);
+    return error;
+  }
+
+  return result;
+}
+
 int main(int argc, char* argv[]) {
 
-  if(!initFiles(argc, argv)) {
-    show_usage(argv[0]);
-    return 1;
-  }
- 
   int i = 0;
   string key = "";
   string line = "";
   string json = "";
-  vector<string> keys;
   vector<string> values;
+  vector<string> names;
+  vector<int> indexes;
+
+  if(!validateParameters(argc, argv, names)) {
+    show_usage(argv[0]);
+    return 1;
+  }
 
   // Read headers
   getline(cin, line);
+  values = splitLine(line);
+  indexes = findIndexes(values, names);
 
-  keys = splitLine(line);
-  keys = formatKeys(keys);
+  // If the keyName of valueName wasn't found, display the usage message
+  if(indexes.size() != 2) {
+    show_usage(argv[0]);
+    return 1;
+  }
 
-  json = "[\n";
+  json = "{\n";
 
   // Read line per line until EOF
   while(getline(cin, line)) {
     // Avoid empty lines
     if(line != "") {
       values = splitLine(line);
-      json += formatJsonObject(keys, values);
+      json += formatJsonObject(indexes, values);
     }
   }
 
   // Remove last comma
-  json[json.size()-2] = ' ';
+  if(json[json.size()-2] == ',') {
+    json[json.size()-2] = ' ';
+  }
 
-  json += "]";
+  json += "}";
 
   cout<<json;
 
